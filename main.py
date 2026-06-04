@@ -8,7 +8,7 @@ TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 OWNER_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 # 감시할 핵심 고위험 키워드 목록
-TARGET_KEYWORDS = ['주주배정', '반대매매', '대표이사변경', '횡령', '배임', '부정거래', '추가상장']
+TARGET_KEYWORDS = ['주주배정', '반대매매', '대표이사변경', '횡령', '배임', '부정거래', '추가상장', '소송', '상장폐지', '주주총회', '체결']
 
 USERS_FILE = "users.txt"
 HISTORY_FILE = "history.txt"
