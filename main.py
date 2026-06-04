@@ -8,7 +8,7 @@ TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 # 감시할 핵심 고위험 키워드 목록
-TARGET_KEYWORDS = ['주주배정', '반대매매', '대표이사변경', '횡령', '배임', '부정거래', '추가상장']
+TARGET_KEYWORDS = ['주주배정', '반대매매', '대표이사변경', '횡령', '배임', '부정거래', '추가상장', '소송', '상장폐지', '거래정지', '체결', '정정']
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
