@@ -81,4 +81,5 @@ def check_dart_api():
         print(f"시스템 오류 발생: {e}")
 
 if __name__ == "__main__":
+    send_telegram("🔔 [시스템 알림] DART 감시 로봇과 텔레그램 연동이 100% 정상 완료되었습니다!")
     check_dart_api()
