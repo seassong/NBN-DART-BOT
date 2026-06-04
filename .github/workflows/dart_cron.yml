@@ -2,9 +2,12 @@ name: DART Realtime Monitor
 
 on:
   schedule:
-    # 5분마다 정기적으로 실행
     - cron: '*/5 * * * *'
-  workflow_dispatch: # 수동 실행 버튼 활성화
+  workflow_dispatch:
+
+# 파일 자동 수정을 위해 쓰기 권한 부여
+permissions:
+  contents: write
 
 jobs:
   monitor:
@@ -24,16 +27,15 @@ jobs:
 
     - name: 스크립트 실행
       env:
-        # 이 부분의 문법을 secrets.변수명 형태로 정확히 교정합니다.
         DART_API_KEY: ${{ secrets.DART_API_KEY }}
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: python main.py
 
-    - name: 중복 방지 히스토리 파일 자동 저장 (Git Commit)
+    - name: 새 사용자 명단 및 히스토리 자동 저장 (Git Commit)
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add history.txt || true
-        git commit -m "Update public history" || true
+        git add history.txt users.txt || true
+        git commit -m "Update history and user database" || true
         git push || true
