@@ -1,67 +1,84 @@
 import os
 import requests
-import xml.etree.ElementTree as ET
+import datetime
 
-# GitHub Secrets에서 환경변수 로드
+# GitHub Secrets에서 환경변수 안전하게 로드
+DART_API_KEY = os.environ.get('DART_API_KEY')
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
-# 감시 키워드 설정
+# 감시할 핵심 고위험 키워드 목록
 TARGET_KEYWORDS = ['주주배정', '반대매매', '대표이사변경', '횡령', '배임', '부정거래', '추가상장']
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': message, 'parse_mode': 'Markdown'}
-    requests.post(url, json=payload)
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"텔레그램 전송 실패: {e}")
 
-def check_dart_rss():
-    # DART 최신공시 RSS 주소 (IP 제한 없음)
-    rss_url = "https://dart.fss.or.kr/api/todayRSS.xml"
+def check_dart_api():
+    # 오늘 날짜 확인 (YYYYMMDD)
+    today = datetime.datetime.now().strftime('%Y%m%d')
+    
+    # DART 당일 공시 목록조회 API (당일 데이터 최대 100건 수집)
+    url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={DART_API_KEY}&bgn_de={today}&page_count=100"
     
     try:
-        response = requests.get(rss_url, timeout=10)
+        response = requests.get(url, timeout=15)
         if response.status_code != 200:
+            print(f"DART API 서버 응답 에러: {response.status_code}")
+            return
+            
+        data = response.json()
+        
+        # DART 결과 상태 코드 검증 ('000'이 정상 조회)
+        if data.get('status') != '000':
+            print(f"DART 서비스 상태 메시지: {data.get('message')}")
             return
 
-        # XML 파싱
-        root = ET.fromstring(response.content)
-        
-        # 파일에서 이미 확인한 공시 ID(link) 목록 불러오기 (중복 알림 방지)
+        # 기알림 내역 중복 제거 파일(history.txt) 로드
         history_file = "history.txt"
         if os.path.exists(history_file):
             with open(history_file, "r") as f:
-                sent_links = set(f.read().splitlines())
+                sent_reports = set(f.read().splitlines())
         else:
-            sent_links = set()
+            sent_reports = set()
 
-        new_links = []
+        new_reports = []
         
-        # RSS 내부 item(공시)들 탐색
-        for item in root.findall('.//item'):
-            title = item.find('title').text # [회사명]공시제목 형식
-            link = item.find('link').text # 공시 상세페이지 주소
+        # 공시 리스트 순회 검사
+        for report in data.get('list', []):
+            rcept_no = report.get('rcept_no')   # 공시 고유번호
+            report_nm = report.get('report_nm') # 공시 제목
+            corp_nm = report.get('corp_nm')     # 회사명
             
-            # 이미 처리한 공시는 생략
-            if link in sent_links:
+            # 이미 이전 루프에서 알림 보낸 공시는 생략
+            if rcept_no in sent_reports:
                 continue
             
-            new_links.append(link)
+            new_reports.append(rcept_no)
 
-            # 키워드 매칭
+            # 제목 내 키워드 포함 확인
             for keyword in TARGET_KEYWORDS:
-                if keyword in title:
-                    # 알림 전송 생성
-                    msg = f"🚨 *DART 위험 키워드 감지*\n\n📄 내용: {title}\n🔗 링크: {link}"
+                if keyword in report_nm:
+                    # 마크다운 문법 특수문자 회피 처리
+                    safe_title = report_nm.replace('[', '\[').replace(']', '\]')
+                    safe_corp = corp_nm.replace('[', '\[').replace(']', '\]')
+                    
+                    # 텔레그램 발송 메시지 구성
+                    msg = f"🚨 *DART API 위험 키워드 감지*\n\n🏢 *회사명:* {safe_corp}\n📄 *공시명:* {safe_title}\n🔗 *링크:* https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
                     send_telegram(msg)
-                    break # 한 공시에 키워드가 여러 개 있어도 알림은 1번만
+                    break
         
-        # 새로 확인한 공시들을 히스토리 파일에 업데이트하여 저장소에 기록 유지
+        # 신규 처리된 공시 고유번호 히스토리에 누적 저장
         with open(history_file, "a") as f:
-            for l in new_links:
-                f.write(l + "\n")
+            for r_no in new_reports:
+                f.write(r_no + "\n")
 
     except Exception as e:
-        print(f"오류 발생: {e}")
+        print(f"시스템 오류 발생: {e}")
 
 if __name__ == "__main__":
-    check_dart_rss()
+    check_dart_api()
