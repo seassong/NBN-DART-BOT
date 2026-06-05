@@ -73,29 +73,30 @@ def send_telegram_to_all(users, message):
 
 
 def check_dart_api(users):
-    today = datetime.datetime.now().strftime('%Y%m%d')
-    # 🔍 디버깅용 로그 추가
-    print(f" 현재 서버가 조회 중인 당일 날짜: {today}")
-
-    url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={DART_API_KEY}&bgn_de={today}&page_count=100"
-    ...
-    try:
-        response = requests.get(url, timeout=15)
-        if response.status_code != 200: return
-        data = response.json()
-
-        # 🔍 디버깅용 로그 추가 (DART에서 총 몇 건을 받아왔는지 출력)
-        print(f" DART API 응답 상태: {data.get('status')}, 가져온 공시 총 개수: {len(data.get('list', []))}")
     """DART Open API 목록 조회 및 매칭 검사"""
     today = datetime.datetime.now().strftime('%Y%m%d')
+    
+    # 🔍 디버깅용 로그 추가
+    print(f" 현재 서버가 조회 중인 당일 날짜: {today}")
+    
     url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={DART_API_KEY}&bgn_de={today}&page_count=100"
     
     try:
         response = requests.get(url, timeout=15)
-        if response.status_code != 200: return
+        if response.status_code != 200:
+            print(f"DART API 서버 통신 실패 (Status Code: {response.status_code})")
+            return
+            
         data = response.json()
-        if data.get('status') != '000': return
+        
+        # 🔍 디버깅용 로그 추가 (DART에서 총 몇 건을 받아왔는지 출력)
+        print(f" DART API 응답 상태: {data.get('status')}, 가져온 공시 총 개수: {len(data.get('list', []))}")
+        
+        # 응답 상태가 '000'(정상)이 아니면 종료
+        if data.get('status') != '000':
+            return
 
+        # --- 중복 알림 방지 내역 파일 읽기 ---
         if os.path.exists(HISTORY_FILE):
             with open(HISTORY_FILE, "r") as f:
                 sent_reports = set(f.read().splitlines())
@@ -104,6 +105,7 @@ def check_dart_api(users):
 
         new_reports = []
         
+        # --- 공시 리스트 순회 및 키워드 매칭 ---
         for report in data.get('list', []):
             rcept_no = report.get('rcept_no')
             report_nm = report.get('report_nm')
@@ -118,11 +120,12 @@ def check_dart_api(users):
                 if keyword in report_nm:
                     safe_title = report_nm.replace('[', '\[').replace(']', '\]')
                     safe_corp = corp_nm.replace('[', '\[').replace(']', '\]')
-                    msg = f"🚨 *DART API 위험 키워드 감지*\n\n🏢 *회사명:* {safe_corp}\n📄 *공시명:* {safe_title}\n🔗 *링크:* https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
+                    msg = f"🚨 *DART API 위험 키워드 감지*\n\n🏢 *회사명:* {safe_corp}\n📄 *공시명:* {safe_title}\n🔗 *リンク:* https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
                     
                     send_telegram_to_all(users, msg)
                     break
         
+        # --- 히스토리 파일 업데이트 ---
         with open(HISTORY_FILE, "a") as f:
             for r_no in new_reports:
                 f.write(r_no + "\n")
